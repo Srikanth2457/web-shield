@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scan Results — WEB-SHIELD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#03060d; --surface:#0b1220; --surface2:#101a2c; --border:#1c2a40;
+  --cyan:#00f0ff; --violet:#8b5cf6;
+  --high:#ff3860; --medium:#ffb020; --low:#3b9eff; --ok:#2ecc71;
+  --text:#edf4ff; --muted:#71819d; --muted2:#94a3b8;
+}
+*{ box-sizing:border-box; margin:0; padding:0; }
+html{ scroll-behavior:smooth; }
+
+body{
+  min-height:100vh; overflow-x:hidden; color:var(--text);
+  font-family:'Space Grotesk',sans-serif;
+  background:
+    radial-gradient(900px 520px at 8% 8%, rgba(0,240,255,.11), transparent 62%),
+    radial-gradient(850px 550px at 94% 12%, rgba(139,92,246,.13), transparent 60%),
+    radial-gradient(800px 600px at 50% 100%, rgba(20,110,255,.09), transparent 62%),
+    #03060d;
+}
+
+/* ---------- Atmospheric background ---------- */
+body::before{
+  content:""; position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.5;
+  background:
+    linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+  background-size:55px 55px;
+  -webkit-mask-image:linear-gradient(to bottom, black, transparent 92%);
+  mask-image:linear-gradient(to bottom, black, transparent 92%);
+}
+canvas#scene{ position:fixed; inset:0; z-index:0; width:100%; height:100%; opacity:.58; pointer-events:none; }
+.veil{
+  position:fixed; inset:0; z-index:1; pointer-events:none;
+  background:
+    radial-gradient(ellipse at 50% -10%, rgba(0,240,255,.045), transparent 42%),
+    linear-gradient(180deg, rgba(3,6,13,.05), rgba(3,6,13,.22) 55%, rgba(3,6,13,.76));
+}
+.ambient{ position:fixed; width:420px; height:420px; border-radius:50%; pointer-events:none; z-index:1; filter:blur(90px); mix-blend-mode:screen; opacity:.10; }
+.ambient.one{ left:-200px; top:15%; background:var(--cyan); animation:glowOne 15s ease-in-out infinite alternate; }
+.ambient.two{ right:-210px; top:8%; background:var(--violet); animation:glowTwo 18s ease-in-out infinite alternate; }
+.ambient.three{ left:35%; bottom:-300px; background:#1769ff; animation:glowThree 20s ease-in-out infinite alternate; }
+
+/* ---------- Nav ---------- */
+nav{ position:relative; z-index:5; max-width:900px; margin:0 auto; padding:28px 24px 0; display:flex; align-items:center; justify-content:space-between; }
+.brand{ display:flex; align-items:center; gap:10px; font-size:1.05rem; font-weight:700; letter-spacing:-.02em; }
+.brand svg{ width:27px; height:27px; filter:drop-shadow(0 0 7px rgba(0,240,255,.65)) drop-shadow(0 0 20px rgba(0,240,255,.2)); }
+.authtag{
+  font-family:'JetBrains Mono',monospace; font-size:.67rem; color:var(--ok);
+  border:1px solid rgba(46,204,113,.3); padding:7px 13px; border-radius:999px;
+  background:linear-gradient(135deg, rgba(46,204,113,.12), rgba(46,204,113,.035));
+  box-shadow:0 0 20px rgba(46,204,113,.06), inset 0 1px rgba(255,255,255,.04);
+}
+
+/* ---------- Layout ---------- */
+.container{ position:relative; z-index:3; max-width:860px; margin:0 auto; padding:52px 24px 110px; }
+.head{ opacity:0; animation:rise .55s ease forwards; }
+.head h1{ font-size:1.9rem; font-weight:700; letter-spacing:-.04em; }
+.target{ margin-top:5px; margin-bottom:38px; font-family:'JetBrains Mono',monospace; font-size:.78rem; color:var(--muted); opacity:0; animation:rise .55s ease .05s forwards; }
+
+/* ---------- Summary cards ---------- */
+.summary{ display:grid; grid-template-columns:200px 1fr 1fr; gap:16px; margin-bottom:44px; opacity:0; animation:rise .55s ease .1s forwards; }
+.card{
+  position:relative; border-radius:17px; backdrop-filter:blur(12px);
+  background:linear-gradient(145deg, rgba(16,27,45,.91), rgba(7,13,24,.91));
+  border:1px solid rgba(115,145,190,.15);
+  box-shadow:0 20px 60px rgba(0,0,0,.24), inset 0 1px rgba(255,255,255,.035);
+}
+.card::before{ content:""; position:absolute; top:0; left:15%; right:15%; height:1px; background:linear-gradient(90deg, transparent, rgba(255,255,255,.09), transparent); pointer-events:none; }
+
+.grade-card{ min-height:145px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+.grade-A{ --grade-color:#2ecc71; } .grade-B{ --grade-color:#7ed957; } .grade-C{ --grade-color:#ffb020; }
+.grade-D{ --grade-color:#ff8a3d; } .grade-F{ --grade-color:#ff3860; }
+.grade-letter{
+  font-family:'JetBrains Mono',monospace; font-size:2.8rem; font-weight:700; line-height:1;
+  color:var(--grade-color); text-shadow:0 0 18px var(--grade-color), 0 0 42px var(--grade-color);
+  animation:gradePulse 3s ease-in-out infinite;
+}
+.grade-num{ margin-top:7px; font-family:'JetBrains Mono',monospace; font-size:.7rem; color:var(--muted); letter-spacing:.08em; }
+.grade-score{ margin-top:10px; font-size:.72rem; color:var(--muted2); }
+
+.donut-card{ min-height:145px; display:flex; align-items:center; gap:20px; padding:22px; }
+.donut-wrap{ position:relative; width:100px; height:100px; flex-shrink:0; }
+.donut-wrap svg{ transform:rotate(-90deg); filter:drop-shadow(0 0 9px rgba(0,240,255,.08)); }
+.seg{ stroke-dasharray:0 251.2; transition:stroke-dasharray 1.2s ease; }
+.donut-center{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; font-family:'JetBrains Mono',monospace; font-size:.72rem; line-height:1.35; color:var(--muted2); }
+.legend{ display:flex; flex-direction:column; gap:9px; font-size:.79rem; }
+.legend-row{ display:flex; align-items:center; gap:8px; color:#cad5e6; }
+.legend-dot{ width:8px; height:8px; border-radius:50%; }
+.dot-high{ background:var(--high); box-shadow:0 0 10px var(--high); }
+.dot-medium{ background:var(--medium); box-shadow:0 0 10px var(--medium); }
+.dot-low{ background:var(--low); box-shadow:0 0 10px var(--low); }
+
+.stats-card{ min-height:145px; display:flex; flex-direction:column; justify-content:center; gap:13px; padding:22px; }
+.stat-row{ display:flex; align-items:center; justify-content:space-between; font-size:.81rem; color:#bdc9da; }
+.stat-row .v{ font-family:'JetBrains Mono',monospace; font-weight:600; color:#edf4ff; }
+.stat-row .v.c-high{ color:var(--high); }
+.stat-row .v.c-medium{ color:var(--medium); }
+.stat-row .v.c-ok{ color:var(--ok); }
+
+/* ---------- Filters ---------- */
+.filters{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:24px; opacity:0; animation:rise .55s ease .15s forwards; }
+.filter-btn{
+  font-family:'JetBrains Mono',monospace; font-size:.72rem; padding:9px 16px; border-radius:999px;
+  border:1px solid rgba(115,145,190,.17); background:rgba(8,14,25,.55); color:var(--muted); cursor:pointer;
+  transition:transform .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease;
+}
+.filter-btn:hover{ transform:translateY(-1px); color:var(--text); border-color:rgba(0,240,255,.55); box-shadow:0 7px 25px rgba(0,240,255,.07); }
+.filter-btn.active{ color:#02070d; font-weight:700; border-color:transparent; background:linear-gradient(100deg, var(--cyan), #5ee7ff 35%, var(--violet)); box-shadow:0 7px 30px rgba(0,240,255,.15); }
+
+h2.section{ font-size:1.05rem; font-weight:600; margin-bottom:16px; letter-spacing:-.01em; }
+
+/* ---------- Findings ---------- */
+.finding{
+  position:relative; margin-bottom:14px; overflow:hidden; border-radius:15px;
+  background:linear-gradient(145deg, rgba(16,27,45,.94), rgba(7,13,24,.93));
+  border:1px solid rgba(115,145,190,.14);
+  box-shadow:0 17px 50px rgba(0,0,0,.19), inset 0 1px rgba(255,255,255,.025);
+  opacity:0; animation:rise .45s ease forwards;
+  transition:transform .22s ease, border-color .22s ease, box-shadow .22s ease;
+}
+.finding:hover{ transform:translateY(-2px); border-color:rgba(0,240,255,.28); box-shadow:0 22px 60px rgba(0,0,0,.27); }
+.finding.sev-Medium:hover{ border-color:rgba(255,176,32,.30); }
+.finding.sev-Low:hover{ border-color:rgba(59,158,255,.30); }
+.finding.sev-High::before{
+  content:""; position:absolute; inset:0; border-radius:15px; padding:1px; pointer-events:none;
+  background:linear-gradient(135deg, rgba(255,56,96,.65), rgba(255,56,96,.05) 50%, transparent 75%);
+  -webkit-mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor;mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+mask-composite:exclude;
+}
+
+.f-header{ display:flex; align-items:center; gap:14px; padding:18px 20px; cursor:pointer; user-select:none; }
+.f-icon{
+  position:relative; width:41px; height:41px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  border-radius:11px; font-size:1.12rem; border:1px solid rgba(255,255,255,.05); box-shadow:inset 0 1px rgba(255,255,255,.05);
+}
+.f-icon.High{ background:linear-gradient(145deg, rgba(255,56,96,.18), rgba(255,56,96,.06)); }
+.f-icon.Medium{ background:linear-gradient(145deg, rgba(255,176,32,.18), rgba(255,176,32,.06)); }
+.f-icon.Low{ background:linear-gradient(145deg, rgba(59,158,255,.18), rgba(59,158,255,.06)); }
+.f-icon.High::after{ content:""; position:absolute; inset:-5px; border-radius:14px; border:1px solid var(--high); opacity:.5; animation:pulseRing 1.9s ease-out infinite; }
+
+.f-title-wrap{ flex:1; min-width:0; }
+.f-title{ font-size:.95rem; font-weight:600; color:#eef4ff; }
+.f-sub{ margin-top:4px; font-size:.75rem; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.f-right{ display:flex; align-items:center; gap:12px; flex-shrink:0; }
+
+.chip{ font-family:'JetBrains Mono',monospace; font-size:.66rem; font-weight:600; padding:5px 10px; border-radius:999px; letter-spacing:.03em; }
+.chip.High{ color:var(--high); background:rgba(255,56,96,.12); border:1px solid rgba(255,56,96,.12); }
+.chip.Medium{ color:var(--medium); background:rgba(255,176,32,.12); border:1px solid rgba(255,176,32,.12); }
+.chip.Low{ color:var(--low); background:rgba(59,158,255,.12); border:1px solid rgba(59,158,255,.12); }
+
+.caret{ width:9px; height:9px; border-right:1.6px solid var(--muted); border-bottom:1.6px solid var(--muted); transform:rotate(45deg); transition:transform .25s ease; }
+.finding.expanded .caret{ transform:rotate(-135deg); }
+
+.f-body{ max-height:0; overflow:hidden; transition:max-height .42s cubic-bezier(.22,.61,.36,1); }
+.finding.expanded .f-body{ max-height:600px; }
+.f-body-inner{ padding:0 20px 21px; }
+
+.risk-meter{ display:flex; align-items:center; gap:9px; margin-bottom:15px; }
+.risk-meter-track{ flex:1; height:6px; border-radius:99px; background:#172238; overflow:hidden; box-shadow:inset 0 1px 3px rgba(0,0,0,.4); }
+.risk-meter-fill{ height:100%; border-radius:99px; }
+.risk-meter-fill.High{ width:90%; background:var(--high); box-shadow:0 0 12px var(--high); }
+.risk-meter-fill.Medium{ width:55%; background:var(--medium); box-shadow:0 0 12px var(--medium); }
+.risk-meter-fill.Low{ width:25%; background:var(--low); box-shadow:0 0 12px var(--low); }
+.risk-meter-label{ font-family:'JetBrains Mono',monospace; font-size:.62rem; color:var(--muted); white-space:nowrap; letter-spacing:.04em; }
+
+.f-desc{ margin-bottom:11px; font-size:.87rem; color:#dce5f2; opacity:.88; line-height:1.55; }
+.f-evidence{
+  margin-bottom:13px; padding:9px 11px; border-radius:9px; border:1px solid rgba(115,145,190,.13);
+  background:rgba(2,7,14,.72); color:#8495b0; font-family:'JetBrains Mono',monospace; font-size:.7rem; line-height:1.45; word-break:break-all;
+}
+.f-ai{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.f-ai-box{ padding:13px 14px; border-radius:11px; font-size:.78rem; line-height:1.55; }
+.f-ai-box.risk{ background:linear-gradient(135deg, rgba(255,176,32,.075), rgba(255,176,32,.025)); border:1px solid rgba(255,176,32,.18); }
+.f-ai-box.fix{ background:linear-gradient(135deg, rgba(46,204,113,.075), rgba(46,204,113,.025)); border:1px solid rgba(46,204,113,.18); }
+.f-ai-box .lbl{ margin-bottom:7px; font-family:'JetBrains Mono',monospace; font-size:.62rem; color:var(--muted); letter-spacing:.05em; }
+
+.empty{ display:none; padding:45px; text-align:center; color:var(--muted); font-family:'JetBrains Mono',monospace; font-size:.82rem; border:1px dashed rgba(115,145,190,.16); border-radius:14px; background:rgba(8,14,25,.35); }
+
+.btn-back{
+  display:inline-flex; align-items:center; gap:8px; margin-top:28px; padding:12px 21px; border-radius:10px;
+  border:1px solid rgba(115,145,190,.17); color:var(--text); text-decoration:none;
+  font-family:'JetBrains Mono',monospace; font-size:.78rem; background:rgba(8,14,25,.45); transition:.2s ease;
+}
+.btn-back:hover{ transform:translateY(-2px); border-color:var(--cyan); background:rgba(0,240,255,.06); box-shadow:0 10px 30px rgba(0,240,255,.07); }
+
+/* ---------- Animations ---------- */
+@keyframes rise{ from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:translateY(0); } }
+@keyframes pulseRing{ 0%{ transform:scale(1); opacity:.5; } 100%{ transform:scale(1.35); opacity:0; } }
+@keyframes gradePulse{ 0%,100%{ filter:brightness(1); } 50%{ filter:brightness(1.12); } }
+@keyframes glowOne{ from{ transform:translate3d(0,0,0) scale(1); } to{ transform:translate3d(120px,55px,0) scale(1.18); } }
+@keyframes glowTwo{ from{ transform:translate3d(0,0,0) scale(1); } to{ transform:translate3d(-100px,90px,0) scale(1.14); } }
+@keyframes glowThree{ from{ transform:translate3d(0,0,0) scale(1); } to{ transform:translate3d(40px,-80px,0) scale(1.12); } }
+
+/* ---------- Responsive ---------- */
+@media (max-width:760px){
+  nav{ padding-top:20px; }
+  .container{ padding-top:38px; }
+  .summary{ grid-template-columns:1fr; }
+  .grade-card, .donut-card, .stats-card{ min-height:130px; }
+}
+@media (max-width:560px){
+  .f-ai{ grid-template-columns:1fr; }
+  .f-header{ padding:16px; gap:11px; }
+  .f-body-inner{ padding:0 16px 17px; }
+  .f-right{ gap:7px; }
+  .f-sub{ max-width:180px; }
+  .chip{ padding:4px 8px; }
+  .head h1{ font-size:1.6rem; }
+  .authtag{ font-size:.58rem; padding:6px 9px; }
+}
+@media (prefers-reduced-motion:reduce){
+  *, *::before, *::after{ animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; }
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="scene"></canvas>
+<div class="ambient one"></div>
+<div class="ambient two"></div>
+<div class="ambient three"></div>
+<div class="veil"></div>
+
+<nav>
+  <div class="brand">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 2L4 5v6c0 5 3.4 8.7 8 9 4.6-.3 8-4 8-9V5l-8-3z" stroke="#00f0ff" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M9 12l2 2 4-4" stroke="#00f0ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    WEB-SHIELD
+  </div>
+  <div class="authtag">● SCAN COMPLETE</div>
+</nav>
+
+<div class="container">
+
+  <div class="head"><h1>Scan Results</h1></div>
+  <p class="target">TARGET · {{ target }}</p>
+
+  {% set total = report.counts.High + report.counts.Medium + report.counts.Low %}
+  {% set high_arc = (report.counts.High / total * 251.2) if total > 0 else 0 %}
+  {% set med_arc = (report.counts.Medium / total * 251.2) if total > 0 else 0 %}
+  {% set low_arc = (report.counts.Low / total * 251.2) if total > 0 else 0 %}
+  {% set med_rot = (report.counts.High / total * 360) if total > 0 else 0 %}
+  {% set low_rot = ((report.counts.High + report.counts.Medium) / total * 360) if total > 0 else 0 %}
+
+  {% if report.score >= 90 %}{% set grade = 'A' %}
+  {% elif report.score >= 75 %}{% set grade = 'B' %}
+  {% elif report.score >= 60 %}{% set grade = 'C' %}
+  {% elif report.score >= 40 %}{% set grade = 'D' %}
+  {% else %}{% set grade = 'F' %}{% endif %}
+
+  <div class="summary">
+
+    <div class="card grade-card grade-{{ grade }}">
+      <div class="grade-letter">{{ grade }}</div>
+      <div class="grade-num">SECURITY GRADE</div>
+      <div class="grade-score">{{ report.score }} / 100</div>
+    </div>
+
+    <div class="card donut-card">
+      <div class="donut-wrap">
+        <svg width="100" height="100" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="40" fill="none" stroke="#1c2a40" stroke-width="12"/>
+          <circle class="seg" data-arc="{{ '%.2f'|format(high_arc) }}" cx="50" cy="50" r="40" fill="none" stroke="#ff3860" stroke-width="12"/>
+          <circle class="seg" data-arc="{{ '%.2f'|format(med_arc) }}" cx="50" cy="50" r="40" fill="none" stroke="#ffb020" stroke-width="12" transform="rotate({{ '%.2f'|format(med_rot) }} 50 50)"/>
+          <circle class="seg" data-arc="{{ '%.2f'|format(low_arc) }}" cx="50" cy="50" r="40" fill="none" stroke="#3b9eff" stroke-width="12" transform="rotate({{ '%.2f'|format(low_rot) }} 50 50)"/>
+        </svg>
+        <div class="donut-center">{{ total }}<br>issues</div>
+      </div>
+      <div class="legend">
+        <div class="legend-row"><span class="legend-dot dot-high"></span>High — {{ report.counts.High }}</div>
+        <div class="legend-row"><span class="legend-dot dot-medium"></span>Medium — {{ report.counts.Medium }}</div>
+        <div class="legend-row"><span class="legend-dot dot-low"></span>Low — {{ report.counts.Low }}</div>
+      </div>
+    </div>
+
+    <div class="card stats-card">
+      <div class="stat-row">
+        <span>Total findings</span>
+        <span class="v">{{ total }}</span>
+      </div>
+      <div class="stat-row">
+        <span>Highest severity</span>
+        <span class="v {% if report.counts.High > 0 %}c-high{% elif report.counts.Medium > 0 %}c-medium{% else %}c-ok{% endif %}">
+          {% if report.counts.High > 0 %}High{% elif report.counts.Medium > 0 %}Medium{% elif report.counts.Low > 0 %}Low{% else %}None{% endif %}
+        </span>
+      </div>
+      <div class="stat-row">
+        <span>Status</span>
+        <span class="v {% if report.score >= 70 %}c-ok{% else %}c-high{% endif %}">
+          {% if report.score >= 70 %}Acceptable{% else %}Needs Attention{% endif %}
+        </span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="filters">
+    <button class="filter-btn active" data-filter="all">All ({{ total }})</button>
+    <button class="filter-btn" data-filter="High">High ({{ report.counts.High }})</button>
+    <button class="filter-btn" data-filter="Medium">Medium ({{ report.counts.Medium }})</button>
+    <button class="filter-btn" data-filter="Low">Low ({{ report.counts.Low }})</button>
+  </div>
+
+  <h2 class="section">Findings</h2>
+
+  <div id="findings-list">
+    {% for finding in report.findings %}
+    {% set c = finding.check %}
+    {% set icon = '⚡' if 'XSS' in c else '🗃️' if 'SQL' in c else '🔓' if 'HTTPS' in c else '🍪' if 'Cookie' in c else '🛡️' if 'Header' in c else '⚠️' %}
+
+    <div class="finding sev-{{ finding.severity }}" data-severity="{{ finding.severity }}">
+
+      <div class="f-header" onclick="this.parentElement.classList.toggle('expanded')">
+        <div class="f-icon {{ finding.severity }}">{{ icon }}</div>
+        <div class="f-title-wrap">
+          <div class="f-title">{{ finding.check }}</div>
+          <div class="f-sub">{{ finding.description }}</div>
+        </div>
+        <div class="f-right">
+          <span class="chip {{ finding.severity }}">{{ finding.severity }}</span>
+          <span class="caret"></span>
+        </div>
+      </div>
+
+      <div class="f-body">
+        <div class="f-body-inner">
+
+          <div class="risk-meter">
+            <span class="risk-meter-label">RISK LEVEL</span>
+            <div class="risk-meter-track">
+              <div class="risk-meter-fill {{ finding.severity }}"></div>
+            </div>
+          </div>
+
+          <p class="f-desc">{{ finding.description }}</p>
+
+          {% if finding.evidence %}
+          <div class="f-evidence">$ {{ finding.evidence }}</div>
+          {% endif %}
+
+          <div class="f-ai">
+            <div class="f-ai-box risk">
+              <div class="lbl">🧠 RISK EXPLANATION</div>
+              {{ finding.risk_explanation }}
+            </div>
+            <div class="f-ai-box fix">
+              <div class="lbl">✅ RECOMMENDED FIX</div>
+              {{ finding.remediation }}
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="empty" id="empty-msg">No findings in this category.</div>
+
+  <a href="/download-report" class="btn-back" style="margin-right:10px;">⬇ Download PDF Report</a>
+<a href="/" class="btn-back">← Run another scan</a>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ---------- 3D background ---------- */
+const canvas = document.getElementById("scene");
+const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.z = 10;
+
+const group = new THREE.Group();
+scene.add(group);
+
+const particleCount = 360;
+const positions = new Float32Array(particleCount * 3);
+for (let i = 0; i < particleCount; i++) {
+  const radius = 7 + Math.random() * 11;
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(Math.random() * 2 - 1);
+  positions[i * 3]     = radius * Math.sin(phi) * Math.cos(theta);
+  positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+  positions[i * 3 + 2] = radius * Math.cos(phi);
+}
+
+const particleGeo = new THREE.BufferGeometry();
+particleGeo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+const particleMat = new THREE.PointsMaterial({
+  color: 0x52e7ff, size: 0.055, transparent: true, opacity: 0.42,
+  depthWrite: false, blending: THREE.AdditiveBlending
+});
+const particles = new THREE.Points(particleGeo, particleMat);
+group.add(particles);
+
+const linePositions = [];
+for (let i = 0; i < 90; i++) {
+  const a = Math.floor(Math.random() * particleCount);
+  const b = Math.floor(Math.random() * particleCount);
+  const ax = positions[a * 3], ay = positions[a * 3 + 1], az = positions[a * 3 + 2];
+  const bx = positions[b * 3], by = positions[b * 3 + 1], bz = positions[b * 3 + 2];
+  if (Math.hypot(ax - bx, ay - by, az - bz) < 5.2) {
+    linePositions.push(ax, ay, az, bx, by, bz);
+  }
+}
+const lineGeo = new THREE.BufferGeometry();
+lineGeo.setAttribute("position", new THREE.Float32BufferAttribute(linePositions, 3));
+const lineMat = new THREE.LineBasicMaterial({
+  color: 0x3b7cff, transparent: true, opacity: 0.10,
+  depthWrite: false, blending: THREE.AdditiveBlending
+});
+const network = new THREE.LineSegments(lineGeo, lineMat);
+group.add(network);
+
+let time = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  time += 0.001;
+  group.rotation.y = time * 0.22;
+  group.rotation.x = Math.sin(time * 0.55) * 0.025;
+  particles.rotation.z = time * 0.08;
+  network.rotation.z = -time * 0.035;
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener("resize", function () {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+if (window.matchMedia("(max-width: 600px)").matches) {
+  particleMat.opacity = 0.25;
+  lineMat.opacity = 0.045;
+}
+if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  particleMat.opacity = 0.12;
+  lineMat.opacity = 0.02;
+}
+
+/* ---------- Stagger finding animations ---------- */
+const findings = document.querySelectorAll(".finding");
+findings.forEach(function (f, i) {
+  f.style.animationDelay = (0.2 + i * 0.05) + "s";
+});
+
+/* ---------- Animate donut segments ---------- */
+setTimeout(function () {
+  document.querySelectorAll(".seg").forEach(function (seg) {
+    seg.style.strokeDasharray = seg.dataset.arc + " 251.2";
+  });
+}, 300);
+
+/* ---------- Filters ---------- */
+const buttons = document.querySelectorAll(".filter-btn");
+const emptyMsg = document.getElementById("empty-msg");
+
+buttons.forEach(function (button) {
+  button.addEventListener("click", function () {
+    buttons.forEach(function (b) { b.classList.remove("active"); });
+    button.classList.add("active");
+
+    const filter = button.dataset.filter;
+    let visibleCount = 0;
+
+    findings.forEach(function (finding) {
+      const matches = filter === "all" || finding.dataset.severity === filter;
+      finding.style.display = matches ? "" : "none";
+      if (matches) visibleCount++;
+    });
+
+    emptyMsg.style.display = visibleCount === 0 ? "block" : "none";
+  });
+});
+
+/* ---------- Auto-expand first High finding ---------- */
+const firstHigh = document.querySelector('.finding[data-severity="High"]');
+if (firstHigh) firstHigh.classList.add("expanded");
+</script>
+
+</body>
+</html>
